@@ -1,88 +1,81 @@
 import tkinter as tk
 from tkinter import messagebox
-import re
+from tkcalendar import Calendar
 
-daily_planner = {}
+class DailyPlanner:
+    def __init__(self, master):
+        self.master = master
+        self.master.title("Ежедневник")
 
-def is_valid_date(date_str):
-    # Проверка формата даты (дд-мм-гггг)
-    if not re.match(r'\d{2}-\d{2}-\d{4}', date_str):
-        return False
-    
-    # Разделение даты на день, месяц и год
-    day, month, year = map(int, date_str.split('-'))
-    
-    # Проверка корректности дня и месяца
-    if month < 1 or month > 12:
-        return False
-    if day < 1 or day > 31:
-        return False
-    
-    # Проверка корректности числа дней в месяце
-    if month in [4, 6, 9, 11] and day > 30:
-        return False
-    if month == 2:
-        if year % 4 == 0 and (year % 100 != 0 or year % 400 == 0):
-            if day > 29:
-                return False
-        elif day > 28:
-            return False
-    
-    return True
+        self.tasks = []
 
-def add_event():
-    date = date_entry.get()
-    event = event_entry.get()
-    
-    # Проверка правильности формата даты
-    if not is_valid_date(date):
-        messagebox.showerror("Ошибка", "Неправильный формат даты или неверная дата.")
-        return
-    
-    if date == "" or event == "":
-        messagebox.showerror("Ошибка", "Пожалуйста, введите дату и событие.")
-        return
-    
-    if date not in daily_planner:
-        daily_planner[date] = []
-    daily_planner[date].append(event)
-    
-    # Запись событий в текстовый файл
-    with open("daily_planner.txt", "a") as file:
-        file.write(f"{date}: {event}\n")
-    
-    messagebox.showinfo("Успех", "Событие добавлено успешно.")
+        self.date_label = tk.Label(master, text="Выберите дату:")
+        self.date_label.grid(row=0, column=0, padx=10, pady=5)
 
-def view_events():
-    date = date_entry.get()
-    if date in daily_planner:
-        events = "\n".join(daily_planner[date])
-        messagebox.showinfo("События на день", events)
-    else:
-        messagebox.showinfo("События на день", "Нет событий на этот день.")
+        self.calendar = Calendar(master, selectmode="day", date_pattern="yyyy-MM-dd")
+        self.calendar.grid(row=0, column=1, padx=10, pady=5)
 
-# Создание главного окна
-root = tk.Tk()
-root.title("Ежедневник")
+        self.task_entry = tk.Entry(master, width=50)
+        self.task_entry.grid(row=1, column=0, columnspan=2, padx=10, pady=5)
 
-# Создание и размещение виджетов
-date_label = tk.Label(root, text="Дата (дд-мм-гггг):")
-date_label.grid(row=0, column=0, padx=5, pady=5)
+        self.add_button = tk.Button(master, text="Добавить задачу", command=self.add_task)
+        self.add_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
 
-date_entry = tk.Entry(root)
-date_entry.grid(row=0, column=1, padx=5, pady=5)
+        self.task_listbox = tk.Listbox(master, width=60)
+        self.task_listbox.grid(row=3, column=0, columnspan=2, padx=10, pady=5)
 
-event_label = tk.Label(root, text="Событие:")
-event_label.grid(row=1, column=0, padx=5, pady=5)
+        self.delete_button = tk.Button(master, text="Удалить выбранную задачу", command=self.delete_task)
+        self.delete_button.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
 
-event_entry = tk.Entry(root)
-event_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.save_button = tk.Button(master, text="Сохранить", command=self.save_tasks)
+        self.save_button.grid(row=5, column=0, columnspan=2, padx=5, pady=5)
 
-add_button = tk.Button(root, text="Добавить событие", command=add_event)
-add_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="we")
+        self.load_tasks()
 
-view_button = tk.Button(root, text="Просмотреть события", command=view_events)
-view_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="we")
+    def add_task(self):
+        task = self.task_entry.get()
+        date = self.calendar.get_date()
+        if task:
+            self.tasks.append((date, task))
+            self.update_task_listbox()
+            self.task_entry.delete(0, tk.END)
+        else:
+            messagebox.showwarning("Пустая задача", "Введите текст задачи!")
 
-# Запуск главного цикла обработки событий
-root.mainloop()
+    def delete_task(self):
+        try:
+            selection = self.task_listbox.curselection()[0]
+            del self.tasks[selection]
+            self.update_task_listbox()
+        except IndexError:
+            messagebox.showwarning("Нет выбранной задачи", "Выберите задачу для удаления!")
+
+    def update_task_listbox(self):
+        self.task_listbox.delete(0, tk.END)
+        for date, task in self.tasks:
+            self.task_listbox.insert(tk.END, f"{date}: {task}")
+
+    def save_tasks(self):
+        with open("tasks.txt", "w", encoding="utf-8") as file:
+            for date, task in self.tasks:
+                file.write(f"{date}: {task}\n")
+        messagebox.showinfo("Сохранение", "Задачи сохранены успешно!")
+
+    def load_tasks(self):
+        try:
+            with open("tasks.txt", "r", encoding="utf-8") as file:
+                for line in file:
+                    parts = line.strip().split(": ")
+                    if len(parts) == 2:
+                        self.tasks.append((parts[0], parts[1]))
+            self.update_task_listbox()
+        except FileNotFoundError:
+            pass
+
+def main():
+    root = tk.Tk()
+    app = DailyPlanner(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
